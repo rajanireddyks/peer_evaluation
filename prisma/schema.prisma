@@ -1,0 +1,205 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                     Int                     @id @default(autoincrement())
+  uuid                   String                  @unique
+  username               String
+  email                  String
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+  evaluationsGiven       Evaluation[]            @relation("EvaluatorRelation")
+  evaluationsReceived    Evaluation[]            @relation("EvaluateeRelation")
+  participantSubmissions ParticipantSubmission[]
+  createdActivities      Activity[]              @relation("ActivityCreator")
+  sharedInvites          InviteLink[]            @relation("InviteSharer")
+  receivedInvites        InviteLink[]            @relation("InviteReceiver")
+
+  @@map("users")
+}
+
+model Activity {
+  id              Int                     @id @default(autoincrement())
+  activityName    String                  @map("activity_name")
+  createdById     Int                     @map("created_by")
+  createdWithRole Role                    @map("created_with_role")
+  metadata        Json /// @db.JsonB - Contains description, activity_type, and other details
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+  creator         User                    @relation("ActivityCreator", fields: [createdById], references: [id])
+  sessions        Session[]
+  rubrics         Rubric[]
+  participants    ParticipantSubmission[]
+  evaluations     Evaluation[]
+  inviteLinks     InviteLink[]
+  activityItems   ActivityItem[]
+  groups          Group[]
+
+  @@map("activities")
+}
+
+model ActivityItem {
+  id         Int      @id @default(autoincrement())
+  activityId Int      @map("activity_id")
+  metadata   Json /// @db.JsonB - activity name, created by, created with role, description, and other data
+  activity   Activity @relation(fields: [activityId], references: [id])
+
+  @@map("activity_items")
+}
+
+model InviteLink {
+  id           Int          @id @default(autoincrement())
+  activityId   Int          @map("activity_id")
+  sharingLink  String       @map("sharing_link")
+  sharedById   Int          @map("shared_by")
+  receivedById Int          @map("recived_by")
+  status       InviteStatus
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  activity     Activity     @relation(fields: [activityId], references: [id])
+  sharedBy     User         @relation("InviteSharer", fields: [sharedById], references: [id])
+  receivedBy   User         @relation("InviteReceiver", fields: [receivedById], references: [id])
+
+  @@map("invite_links")
+}
+
+model Session {
+  id          Int           @id @default(autoincrement())
+  activityId  Int           @map("activity_id")
+  startTime   DateTime      @map("start_time")
+  endTime     DateTime      @map("end_time")
+  duration    Int
+  status      SessionStatus
+  scheduledAt DateTime      @map("scheduled_at")
+  activity    Activity      @relation(fields: [activityId], references: [id])
+  evaluations Evaluation[]
+
+  @@map("sessions")
+}
+
+model Group {
+  id             Int            @id @default(autoincrement())
+  activityId     Int            @map("activity_id")
+  groupName      String         @map("group_name")
+  evaluationType EvaluationType @map("evaluation_type")
+  groupSize      Int            @map("group_size")
+  groupMembers   Json           @map("group_members") /// @db.JsonB - user.id
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  finalizedAt    DateTime?      @map("finalized_at")
+  activity       Activity       @relation(fields: [activityId], references: [id])
+  evaluations    Evaluation[]
+
+  @@map("groups")
+}
+
+model Rubric {
+  id         Int      @id @default(autoincrement())
+  activityId Int      @map("activity_id")
+  criteria   Json /// @db.JsonB - Array of evaluation criteria
+  maxMarks   Json     @map("max_marks") /// @db.JsonB - Marks for each criterion
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+  activity   Activity @relation(fields: [activityId], references: [id])
+
+  @@map("rubrics")
+}
+
+model Evaluation {
+  id             Int              @id @default(autoincrement())
+  activityId     Int              @map("activity_id")
+  sessionId      Int              @map("session_id")
+  evaluatorId    Int              @map("evaluator_id")
+  evaluateeId    Int              @map("evaluatee_id")
+  groupId        Int              @map("group_id")
+  marks          Float
+  comments       String?
+  status         EvaluationStatus
+  reviewComments String?          @map("review_comments")
+  isSubmitted    Boolean          @map("is_submitted")
+  isReviewed     Boolean          @map("is_reviewed")
+  submittedAt    DateTime?        @map("submitted_at")
+  reviewedAt     DateTime?        @map("reviewed_at")
+  finalizedAt    DateTime?        @map("finalized_at")
+  activity       Activity         @relation(fields: [activityId], references: [id])
+  session        Session          @relation(fields: [sessionId], references: [id])
+  evaluator      User             @relation("EvaluatorRelation", fields: [evaluatorId], references: [id])
+  evaluatee      User             @relation("EvaluateeRelation", fields: [evaluateeId], references: [id])
+  group          Group            @relation(fields: [groupId], references: [id])
+
+  @@map("evaluations")
+}
+
+model ParticipantSubmission {
+  id         Int            @id @default(autoincrement())
+  activityId Int            @map("activity_id")
+  userId     Int            @map("user_id")
+  joinedVia  JoinedVia      @map("joined_via")
+  fileName   String         @map("file_name")
+  submission SubmissionType
+  createdAt  DateTime       @default(now()) @map("created_at")
+  updatedAt  DateTime       @updatedAt @map("updated_at")
+  activity   Activity       @relation(fields: [activityId], references: [id])
+  user       User           @relation(fields: [userId], references: [id])
+
+  @@map("participants_submissions")
+}
+
+enum Role {
+  HOST
+  PARTICIPANT
+}
+
+enum InviteStatus {
+  PENDING
+  JOINED
+}
+
+enum EvaluationType {
+  WITHIN_GROUP
+  GROUP_TO_GROUP
+  ANY_TO_ANY
+}
+
+enum SessionStatus {
+  STARTED
+  SUBMITTED
+  UNDER_REVIEW
+  REDO
+  REJECTED
+  COMPLETED
+}
+
+enum EvaluationStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  REDO
+  COMPLETED
+}
+
+enum JoinedVia {
+  ATTENDANCE
+  MANUAL
+  LINK
+}
+
+enum SubmissionType {
+  TXT
+  PDF
+  JPEG
+  SVG
+}
