@@ -23,13 +23,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         console.log('Received authorization code:', code);
 
         const tokenResponse = await axios.post(
-            'https://authtest.cialabs.org/api/login/oauth/access_token',
+            process.env.CASDOOR_TOKEN_URL as string,
             {
-                client_id: process.env.CLIENT_ID,
-                client_secret: process.env.CLIENT_SECRET,
+                client_id: process.env.NEXT_PUBLIC_CLIENT_ID,
+                client_secret: process.env.NEXT_PUBLIC_CLIENT_SECRET,
                 code,
                 grant_type: 'authorization_code',
-                redirect_uri: process.env.REDIRECT_URI,
+                redirect_uri: process.env.NEXT_PUBLIC_REDIRECT_URI,
             },
             {
                 headers: {

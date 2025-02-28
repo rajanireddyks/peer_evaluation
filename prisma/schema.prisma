@@ -17,7 +17,7 @@ model User {
   id                     Int                     @id @default(autoincrement())
   uuid                   String                  @unique
   username               String
-  email                  String
+  email                  String                  @unique
   createdAt              DateTime                @default(now()) @map("created_at")
   updatedAt              DateTime                @updatedAt @map("updated_at")
   evaluationsGiven       Evaluation[]            @relation("EvaluatorRelation")
@@ -25,7 +25,6 @@ model User {
   participantSubmissions ParticipantSubmission[]
   createdActivities      Activity[]              @relation("ActivityCreator")
   sharedInvites          InviteLink[]            @relation("InviteSharer")
-  receivedInvites        InviteLink[]            @relation("InviteReceiver")
 
   @@map("users")
 }
@@ -60,47 +59,50 @@ model ActivityItem {
 }
 
 model InviteLink {
-  id           Int          @id @default(autoincrement())
-  activityId   Int          @map("activity_id")
-  sharingLink  String       @map("sharing_link")
-  sharedById   Int          @map("shared_by")
-  receivedById Int          @map("recived_by")
-  status       InviteStatus
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  activity     Activity     @relation(fields: [activityId], references: [id])
-  sharedBy     User         @relation("InviteSharer", fields: [sharedById], references: [id])
-  receivedBy   User         @relation("InviteReceiver", fields: [receivedById], references: [id])
+  id          Int      @id @default(autoincrement())
+  activityId  Int      @map("activity_id")
+  sharingLink String   @unique @map("sharing_link")
+  sharedById  Int      @map("shared_by")
+  receivedBy  Json?    @map("received_by") // JSON field for user data and status
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  activity Activity @relation(fields: [activityId], references: [id])
+  sharedBy User     @relation("InviteSharer", fields: [sharedById], references: [id])
 
   @@map("invite_links")
 }
 
 model Session {
-  id          Int           @id @default(autoincrement())
-  activityId  Int           @map("activity_id")
-  startTime   DateTime      @map("start_time")
-  endTime     DateTime      @map("end_time")
-  duration    Int
-  status      SessionStatus
-  scheduledAt DateTime      @map("scheduled_at")
-  activity    Activity      @relation(fields: [activityId], references: [id])
-  evaluations Evaluation[]
+  id             Int            @id @default(autoincrement())
+  activityId     Int            @map("activity_id")
+  startTime      DateTime       @map("start_time")
+  endTime        DateTime       @map("end_time")
+  duration       Int
+  status         SessionStatus
+  scheduledAt    DateTime       @map("scheduled_at")
+  evaluationType EvaluationType @map("evaluation_type") // Added field
+  groupSize      Int            @map("group_size") // Added field
+  totalStudents  Int            @map("total_students") // Added field
+  activity       Activity       @relation(fields: [activityId], references: [id])
+  evaluations    Evaluation[]
+  groups         Group[] // Added relation
 
   @@map("sessions")
 }
 
 model Group {
-  id             Int            @id @default(autoincrement())
-  activityId     Int            @map("activity_id")
-  groupName      String         @map("group_name")
-  evaluationType EvaluationType @map("evaluation_type")
-  groupSize      Int            @map("group_size")
-  groupMembers   Json           @map("group_members") /// @db.JsonB - user.id
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
-  finalizedAt    DateTime?      @map("finalized_at")
-  activity       Activity       @relation(fields: [activityId], references: [id])
-  evaluations    Evaluation[]
+  id           Int          @id @default(autoincrement())
+  sessionId    Int          @map("session_id") // Changed from activityId
+  activityId   Int          @map("activity_id")
+  groupName    String?      @map("group_name")
+  groupMembers Json         @map("group_members")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  finalizedAt  DateTime?    @map("finalized_at")
+  session      Session      @relation(fields: [sessionId], references: [id])
+  activity     Activity     @relation(fields: [activityId], references: [id])
+  evaluations  Evaluation[]
 
   @@map("groups")
 }
@@ -143,16 +145,16 @@ model Evaluation {
 }
 
 model ParticipantSubmission {
-  id         Int            @id @default(autoincrement())
-  activityId Int            @map("activity_id")
-  userId     Int            @map("user_id")
-  joinedVia  JoinedVia      @map("joined_via")
-  fileName   String         @map("file_name")
-  submission SubmissionType
-  createdAt  DateTime       @default(now()) @map("created_at")
-  updatedAt  DateTime       @updatedAt @map("updated_at")
-  activity   Activity       @relation(fields: [activityId], references: [id])
-  user       User           @relation(fields: [userId], references: [id])
+  id         Int             @id @default(autoincrement())
+  activityId Int             @map("activity_id")
+  userId     Int             @map("user_id")
+  joinedVia  JoinedVia       @map("joined_via")
+  fileName   String?         @map("file_name") // Make it optional
+  submission SubmissionType? // Make it optional
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+  activity   Activity        @relation(fields: [activityId], references: [id])
+  user       User            @relation(fields: [userId], references: [id])
 
   @@map("participants_submissions")
 }
@@ -174,15 +176,13 @@ enum EvaluationType {
 }
 
 enum SessionStatus {
-  STARTED
-  SUBMITTED
-  UNDER_REVIEW
-  REDO
-  REJECTED
+  PENDING
+  ACTIVE
   COMPLETED
 }
 
 enum EvaluationStatus {
+  PENDING
   SUBMITTED
   UNDER_REVIEW
   APPROVED
@@ -203,3 +203,7 @@ enum SubmissionType {
   JPEG
   SVG
 }
+
+
+  
+  
